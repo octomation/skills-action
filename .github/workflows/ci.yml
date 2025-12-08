@@ -1,0 +1,76 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  schedule:
+    - cron: 0 7 1 * * # at 07:00 on day-of-month 1, UTC
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: The reason for dispatching it manually.
+        type: string
+        default: manual healthcheck
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  CLAUDE_CODE_VERSION: 2.1.289
+
+jobs:
+  lint:
+    name: Linting
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v7.0.1
+      - name: Run actionlint
+        uses: docker://rhysd/actionlint:1.7.12
+        with:
+          args: -color
+
+  test:
+    name: Testing
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v7.0.1
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.1.0
+        with: { node-version: 24 }
+
+      - name: Run tests
+        run: npm test
+
+  # the action as the catalog's CI runs it, on the live catalog
+  catalog:
+    name: Checking octolab/skills
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout the action
+        uses: actions/checkout@v7.0.1
+      - name: Checkout the catalog
+        uses: actions/checkout@v7.0.1
+        with: { repository: octolab/skills, path: catalog, fetch-depth: 0 }
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.1.0
+        with: { node-version: 24 }
+      - name: Install Claude Code
+        run: npm install --global "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+
+      - name: Check the catalog
+        uses: ./
+        env:
+          CLAUDE_CONFIG_DIR: ${{ runner.temp }}/claude
+          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+        with:
+          command: check
+          path: catalog
