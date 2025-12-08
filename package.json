@@ -1,0 +1,16 @@
+{
+  "name": "octomation-skills-action",
+  "private": true,
+  "description": "Publish a tool's agent skill to the octolab/skills catalog and check the catalog",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "octolab-skills": "bin/octolab-skills.mjs"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  }
+}

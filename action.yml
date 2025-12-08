@@ -1,0 +1,59 @@
+name: OctoLab skills
+description: >-
+  Publishes a tool's released agent skill to the octolab/skills catalog, or
+  checks a catalog checkout. Run publish from the tool's release workflow
+  after the GitHub release exists; run check from the catalog's CI.
+author: OctoLab
+
+branding:
+  icon: package
+  color: purple
+
+inputs:
+  command:
+    description: publish or check.
+    required: false
+    default: publish
+  tool:
+    description: publish. Tool name registered in catalog.json, e.g. indexit.
+    required: false
+  token:
+    description: publish. Token with contents write access to the catalog repository.
+    required: false
+  source-tag:
+    description: publish. Release tag of the tool, e.g. v0.2.0.
+    required: false
+    default: ${{ github.ref_name }}
+  source-sha:
+    description: publish. Commit the workflow released.
+    required: false
+    default: ${{ github.sha }}
+  catalog-repository:
+    description: publish. Catalog repository.
+    required: false
+    default: octolab/skills
+  github-token:
+    description: publish. Token that reads the tool repository; the workflow's own token by default.
+    required: false
+    default: ${{ github.token }}
+  path:
+    description: check. Catalog checkout to check.
+    required: false
+    default: .
+  discovery:
+    description: check. Output of `npx skills add <catalog> --skill '*' --json` to compare with the published plugins.
+    required: false
+
+outputs:
+  changed:
+    description: publish. Whether this run wrote a new publication.
+  catalog-commit:
+    description: publish. Catalog commit that holds this release.
+  catalog-tag:
+    description: publish. Catalog tag of this release, <tool>--v<version>.
+  payload-digest:
+    description: publish. Digest of the published skill directory.
+
+runs:
+  using: node24
+  main: scripts/action.mjs
