@@ -34,7 +34,8 @@ npm test
 ```
 
 `ci` runs actionlint, the tests and `check` on the live catalog on every push
-and pull request, and monthly.
+and pull request, and monthly. `cd` publishes the release of a version tag; see
+Releasing.
 
 ## Versions
 
@@ -74,20 +75,22 @@ used again; our own rule is stricter: releases and tags stay.
    previous tag (`git tag -l --format='%(contents)' vX.Y.W`): the heading,
    one or two sentences, lowercase imperative bullets, and
    `Release notes: docs/content/changelog/vX.Y.Z.md`.
-4. Tag, push and publish; the release body is the note without its heading:
+4. Tag and push; `cd` checks the tag (signed and verified by GitHub, on
+   `main`, with its note), runs the tests and publishes the release, with
+   the note's heading as the title and the rest as the body:
 
    ```sh
-   note=docs/content/changelog/vX.Y.Z.md
    git tag -s vX.Y.Z -F "$annotation"
    git tag -v vX.Y.Z
    git push origin vX.Y.Z
-   gh release create vX.Y.Z --verify-tag --title "$(sed -n '1s/^# //p' "$note")" \
-     --notes-file <(tail -n +3 "$note")
    ```
 
-5. `gh release verify vX.Y.Z` passes.
+   For a tag pushed before `cd` existed, or after it failed:
+   `gh workflow run cd.yml -f tag=vX.Y.Z`.
+5. `cd` is green: its last step checks that the release is immutable and
+   `gh release verify vX.Y.Z` passes.
 6. Update the pin in the catalog's `ci.yml` and in the tools, or let
    Dependabot do it.
 
-A tag pushed without its release is not locked yet: publish the release
-right away, or delete the tag before anyone pins it.
+Until `cd` publishes the release, the tag is not locked: if `cd` fails, fix
+the cause and dispatch it again, or delete the tag before anyone pins it.

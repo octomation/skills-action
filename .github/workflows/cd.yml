@@ -1,0 +1,94 @@
+name: cd
+
+# Publishes the GitHub release of a version tag, with the release note from
+# docs/content/changelog/ as its body. Immutable releases lock the tag once
+# the release exists. Dispatch it for a tag pushed before this workflow.
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The version tag to release, e.g. v0.1.0.
+        type: string
+        required: true
+
+concurrency:
+  group: cd-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Releasing
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag || github.ref_name }}
+
+    steps:
+      - name: Checkout the tag
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.1.0
+        with: { node-version: 24 }
+
+      # a release locks its tag for good: check everything before it exists
+      - name: Check the tag
+        id: tag
+        run: |
+          if ! [[ "${TAG}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::${TAG}: release tags look like vX.Y.Z"
+            exit 1
+          fi
+          read -r type sha < <(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" -q '.object.type + " " + .object.sha')
+          if [ "${type}" != tag ]; then
+            echo "::error::${TAG}: lightweight tag; release tags are annotated and signed"
+            exit 1
+          fi
+          verified="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${sha}" -q '.verification.verified')"
+          if [ "${verified}" != true ]; then
+            echo "::error::${TAG}: GitHub does not verify the tag signature"
+            exit 1
+          fi
+          git fetch --quiet origin main
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::${TAG}: the tagged commit is not on main"
+            exit 1
+          fi
+          note="docs/content/changelog/${TAG}.md"
+          if [ ! -f "${note}" ]; then
+            echo "::error::${note}: no release note at the tag"
+            exit 1
+          fi
+          title="$(sed -n '1s/^# //p' "${note}")"
+          if [[ "${title}" != "${TAG} — "* ]]; then
+            echo "::error::${note}: the first line must be '# ${TAG} — Slogan.'"
+            exit 1
+          fi
+          tail -n +3 "${note}" >"${RUNNER_TEMP}/notes.md"
+          echo "title=${title}" >>"${GITHUB_OUTPUT}"
+      - name: Run tests
+        run: npm test
+
+      - name: Publish the release
+        env:
+          TITLE: ${{ steps.tag.outputs.title }}
+        run: |
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "::notice::${TAG} is already released"
+          else
+            gh release create "${TAG}" --verify-tag --title "${TITLE}" --notes-file "${RUNNER_TEMP}/notes.md"
+          fi
+      - name: Verify the release
+        run: |
+          gh release view "${TAG}" --json isImmutable,isDraft -q 'if .isImmutable and (.isDraft | not) then "immutable" else error("not an immutable published release") end'
+          gh release verify "${TAG}"
