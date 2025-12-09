@@ -92,3 +92,21 @@ jobs:
         run: |
           gh release view "${TAG}" --json isImmutable,isDraft -q 'if .isImmutable and (.isDraft | not) then "immutable" else error("not an immutable published release") end'
           gh release verify "${TAG}"
+
+  notify:
+    name: Notifying
+    needs: [ release ]
+    runs-on: ubuntu-24.04
+    if: failure() || success()
+
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v7.0.1
+        with: { fetch-depth: 0 }
+
+      - name: Send notification
+        uses: ./.github/actions/notify
+        with:
+          emoji: 🚀
+          channel: ${{ secrets.SLACK_WEBHOOK }}
+          success: ${{ ! contains(needs.*.result, 'failure') }}
