@@ -37,6 +37,13 @@ npm test
 and pull request, and monthly. `cd` publishes the release of a version tag; see
 Releasing.
 
+Maintenance runs on schedule: `cleanup.stale` marks and closes inactive
+issues and pull requests daily (`status: pending` exempts one), and
+`cleanup.runs` deletes completed workflow runs monthly. Every workflow
+reports to Slack through `.github/actions/notify` with the organization
+secret `SLACK_WEBHOOK`, except `ci` on pull requests; an empty secret skips
+the message.
+
 ## Versions
 
 A release is a signed tag `vX.Y.Z`, never moved or deleted. Consumers pin the

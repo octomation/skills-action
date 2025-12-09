@@ -1,0 +1,75 @@
+name: Workflow runs cleanup
+
+on:
+  schedule:
+    # a day after the monthly ci, so its run stays readable until then
+    - cron: 0 6 2 * * # at 06:00 on day-of-month 2, UTC
+
+  workflow_call:
+
+  workflow_dispatch:
+    inputs:
+      pattern:
+        description: Delete completed runs of this workflow, or All workflows.
+        type: choice
+        options:
+          - All
+          - cd
+          - ci
+          - Stale issues cleanup
+          - Workflow runs cleanup
+        default: All
+        required: true
+      dry_run:
+        description: Only log actions, do not perform any delete operations.
+        type: boolean
+        required: false
+      reason:
+        description: The reason for dispatching it manually.
+        type: string
+        default: manual healthcheck
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  delete:
+    name: Deleting
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+
+    steps:
+      - name: Delete workflow runs
+        uses: Mattraks/delete-workflow-runs@v2.1.0
+        with:
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          delete_workflow_pattern: >-
+            ${{
+              github.event.inputs.pattern != 'All'
+              && github.event.inputs.pattern
+              || ''
+            }}
+          dry_run: ${{ inputs.dry_run && 'true' || 'false' }}
+          retain_days: 0
+          keep_minimum_runs: 0
+
+  notify:
+    name: Notifying
+    needs: [ delete ]
+    runs-on: ubuntu-24.04
+    if: failure() || success()
+
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v7.0.1
+        with: { fetch-depth: 0 }
+
+      - name: Send notification
+        uses: ./.github/actions/notify
+        with:
+          emoji: 🧹
+          channel: ${{ secrets.SLACK_WEBHOOK }}
+          success: ${{ ! contains(needs.*.result, 'failure') }}
