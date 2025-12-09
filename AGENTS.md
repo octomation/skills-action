@@ -67,18 +67,26 @@ from GitHub. Deleting the release unlocks the tag, but its name can never be
 used again; our own rule is stricter: releases and tags stay.
 
 1. `ci` is green on `main`.
-2. Write the notes: what changes for the workflows that call the action.
-   Dependabot quotes them in its pull requests.
-3. Tag, push and publish:
+2. Write `docs/content/changelog/vX.Y.Z.md`: a heading `# vX.Y.Z — Slogan.`
+   and what changes for the workflows that call the action. It becomes the
+   release body, and Dependabot quotes it in its pull requests. Commit it.
+3. Write the tag annotation to a file outside the repository, following the
+   previous tag (`git tag -l --format='%(contents)' vX.Y.W`): the heading,
+   one or two sentences, lowercase imperative bullets, and
+   `Release notes: docs/content/changelog/vX.Y.Z.md`.
+4. Tag, push and publish; the release body is the note without its heading:
 
    ```sh
-   git tag -s vX.Y.Z -m 'vX.Y.Z'
+   note=docs/content/changelog/vX.Y.Z.md
+   git tag -s vX.Y.Z -F "$annotation"
+   git tag -v vX.Y.Z
    git push origin vX.Y.Z
-   gh release create vX.Y.Z --verify-tag --title vX.Y.Z --notes-file "$notes"
+   gh release create vX.Y.Z --verify-tag --title "$(sed -n '1s/^# //p' "$note")" \
+     --notes-file <(tail -n +3 "$note")
    ```
 
-4. `gh release verify vX.Y.Z` passes.
-5. Update the pin in the catalog's `ci.yml` and in the tools, or let
+5. `gh release verify vX.Y.Z` passes.
+6. Update the pin in the catalog's `ci.yml` and in the tools, or let
    Dependabot do it.
 
 A tag pushed without its release is not locked yet: publish the release
