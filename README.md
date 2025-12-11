@@ -1,4 +1,4 @@
-# 📦 Skills action
+# 📚 Skills action
 
 A GitHub Action that moves a tool's agent skill from the tool's repository to
 the [octolab/skills](https://github.com/octolab/skills) catalog, and checks
@@ -6,7 +6,7 @@ the catalog. The skill lives and changes in the tool's repository; on a
 stable release the tool's workflow calls this action, which copies the skill
 into the catalog together with the manifests that make it installable by
 Claude Code, Codex and the skills CLI.
-<!-- 📦 Publish OctoLab agent skills to octolab/skills. -->
+<!-- 📚 Publish OctoLab agent skills to octolab/skills. -->
 
 ## 🚀 Publish from a tool
 
