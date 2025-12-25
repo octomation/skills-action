@@ -5,6 +5,7 @@
 //   octolab-skills publish                     publish a release (env: see scripts/publish.mjs)
 //   octolab-skills generate [--check]          regenerate the manifests, or fail if stale
 //   octolab-skills check [--discovery out.json] generated files, registry, payloads, tags, claude plugin validate
+//   octolab-skills inspect <tool>              the published record of a tool as JSON, offline
 
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -26,8 +27,11 @@ try {
       run('validate', '--tags', ...args)
       run('claude-validate')
       break
+    case 'inspect':
+      run('inspect', ...args)
+      break
     default:
-      console.error('usage: octolab-skills publish | generate [--check] | check [--discovery out.json]')
+      console.error('usage: octolab-skills publish | generate [--check] | check [--discovery out.json] | inspect <tool>')
       process.exit(2)
   }
 } catch (err) {

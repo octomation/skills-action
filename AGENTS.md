@@ -9,13 +9,14 @@ before changing anything.
 ## Layout
 
 ```text
-action.yml               node24 action: command publish or check
+action.yml               node24 action: command publish, check or inspect
 scripts/action.mjs       the action's entry point: inputs to commands
 bin/octolab-skills.mjs   the commands, for the action and for maintainers
 scripts/lib.mjs          registry, frontmatter, versions, digest, manifests
 scripts/publish.mjs      publication through the GitHub API
 scripts/generate.mjs     marketplace.json and plugin.json from catalog.json
 scripts/validate.mjs     registry, payloads, provenance, tags, discovery
+scripts/inspect.mjs      the published record of one tool, offline
 scripts/claude-validate.mjs  claude plugin validate on the catalog
 tests/                   unit tests on a fake GitHub API
 ```
@@ -65,7 +66,9 @@ Before 1.0 this is the OctoLab rule the skills' compatibility ranges follow
 too: every `0.Y.*` release is compatible, a breaking change is the next minor.
 
 A change of the catalog layout or of `provenance.json` must keep reading
-what is already published: published releases are frozen.
+what is already published: published releases are frozen. `inspect` is how
+the catalog's workflows are to read a record, so its outputs are part of the
+contract and a change of the record changes `inspect` with it.
 
 ## Releasing
 

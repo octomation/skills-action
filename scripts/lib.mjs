@@ -113,6 +113,12 @@ export function isRelativePath(path) {
   return typeof path === 'string' && path !== '' && !path.startsWith('/') && !path.split('/').includes('..')
 }
 
+// isRepository reports whether name looks like a GitHub owner/repo, neither
+// part only dots.
+export function isRepository(name) {
+  return typeof name === 'string' && /^[\w.-]+\/[\w.-]+$/.test(name) && !name.split('/').some((p) => /^\.+$/.test(p))
+}
+
 // isSkillName reports whether name may name a skill.
 export function isSkillName(name) {
   return typeof name === 'string' && NAME.test(name) && name.length <= 64
@@ -129,6 +135,28 @@ export function provenanceSkills(record) {
     return new Map(Object.entries(record.skills).map(([n, s]) => [n, { path: s?.path, digest: s?.digest }]))
   }
   return new Map([[record.tool, { path: record.source?.path, digest: record.digest?.value }]])
+}
+
+// recordedSkills reads the skills that the provenance record of tool lists, as
+// [name, { path, digest }] in recorded order, and refuses what a publisher
+// never writes: a name that can't name a skill, a path that leaves the tool's
+// repository, a record without the main skill. Messages name the file in the
+// catalog. Digests are not checked here: their readers hash the files.
+export function recordedSkills(record, tool) {
+  const at = `${PLUGINS}/${tool}/provenance.json`
+  if (record === null || record === undefined) throw new Error(`${at}: must be a JSON object`)
+  let list
+  try {
+    list = [...provenanceSkills(record)]
+  } catch (err) {
+    throw new Error(`${PLUGINS}/${tool}/${err.message}`)
+  }
+  for (const [n, { path }] of list) {
+    if (!isSkillName(n)) throw new Error(`${at}: ${JSON.stringify(n)} is not a skill name`)
+    if (!isRelativePath(path)) throw new Error(`${at}: skill ${n} has a path outside the repository`)
+  }
+  if (!list.some(([n]) => n === tool)) throw new Error(`${at} does not list the main skill ${tool}`)
+  return list
 }
 
 // --- frontmatter ----------------------------------------------------------------

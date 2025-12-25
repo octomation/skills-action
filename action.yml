@@ -1,8 +1,9 @@
 name: OctoLab skills
 description: >-
-  Publishes a tool's released agent skills to the octolab/skills catalog, or
-  checks a catalog checkout. Run publish from the tool's release workflow
-  after the GitHub release exists; run check from the catalog's CI.
+  Publishes a tool's released agent skills to the octolab/skills catalog,
+  checks a catalog checkout, or reads the published record of one tool in it.
+  Run publish from the tool's release workflow after the GitHub release
+  exists; run check and inspect from the catalog's CI.
 author: OctoLab
 
 branding:
@@ -11,11 +12,11 @@ branding:
 
 inputs:
   command:
-    description: publish or check.
+    description: publish, check or inspect.
     required: false
     default: publish
   tool:
-    description: publish. Tool name registered in catalog.json, e.g. indexit.
+    description: publish, inspect. Tool name, e.g. indexit; publish requires it registered in catalog.json.
     required: false
   token:
     description: publish. Token with contents write access to the catalog repository.
@@ -37,7 +38,7 @@ inputs:
     required: false
     default: ${{ github.token }}
   path:
-    description: check. Catalog checkout to check.
+    description: check, inspect. Catalog checkout to check or read.
     required: false
     default: .
   discovery:
@@ -54,7 +55,17 @@ outputs:
   payload-digest:
     description: publish. Digest of the main skill's directory.
   skills-digests:
-    description: publish. JSON object of every published skill's name and digest, the main skill first.
+    description: publish, inspect. JSON object of every published skill's name and digest, the main skill first.
+  version:
+    description: inspect. Published version of the tool, X.Y.Z.
+  source-repository:
+    description: inspect. Repository the tool was published from, owner/repo.
+  source-tag:
+    description: inspect. Release tag the tool was published from, vX.Y.Z.
+  source-commit:
+    description: inspect. Commit the release tag pointed at.
+  skills-paths:
+    description: inspect. JSON object of every published skill's name and path in the tool's repository, the main skill first.
 
 runs:
   using: node24

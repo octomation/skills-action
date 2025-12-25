@@ -49,7 +49,11 @@ switch (command) {
     run(['check', ...(discovery ? ['--discovery', resolve(discovery)] : [])], {}, resolve(input('path') || '.'))
     break
   }
+  case 'inspect':
+    need('tool')
+    run(['inspect', input('tool')], {}, resolve(input('path') || '.'))
+    break
   default:
-    console.error(`::error::command must be publish or check, not ${command}`)
+    console.error(`::error::command must be publish, check or inspect, not ${command}`)
     process.exit(2)
 }

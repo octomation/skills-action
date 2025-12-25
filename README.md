@@ -1,11 +1,11 @@
 # 📚 Skills action
 
 A GitHub Action that moves a tool's agent skill from the tool's repository to
-the [octolab/skills](https://github.com/octolab/skills) catalog, and checks
-the catalog. The skill lives and changes in the tool's repository; on a
-stable release the tool's workflow calls this action, which copies the skill
-into the catalog together with the manifests that make it installable by
-Claude Code, Codex and the skills CLI.
+the [octolab/skills](https://github.com/octolab/skills) catalog, checks the
+catalog, and reads what it publishes for a tool. The skill lives and changes
+in the tool's repository; on a stable release the tool's workflow calls this
+action, which copies the skill into the catalog together with the manifests
+that make it installable by Claude Code, Codex and the skills CLI.
 <!-- 📚 Publish OctoLab agent skills to octolab/skills. -->
 
 ## 🚀 Publish from a tool
@@ -151,6 +151,59 @@ or a `<tool>--v*` tag is invalid, or `claude plugin validate` reports a
 finding; it needs `claude` on `PATH`. `discovery` is the absolute path to the
 output of `npx skills add <catalog> --skill '*' --json`, compared with the
 published skills of every plugin. `path` selects a checkout other than the workspace.
+
+## 🔎 Inspect a published plugin
+
+`inspect` reads what a catalog checkout publishes for one tool, at any commit
+or tag of the catalog, so a workflow never parses `provenance.json` itself.
+It reads `plugins/<tool>/` only: no `catalog.json`, since the registry of
+today can't judge an older tag, no token, network, git or `claude`. It is
+meant for the catalog's install check, run on each tag with the pin of its
+`check`:
+
+```yaml
+- name: Read the published skills
+  id: published
+  uses: octomation/skills-action@vX.Y.Z
+  with:
+    command: inspect
+    tool: ${{ matrix.tool }}
+- name: Compare the payload with the tool release
+  env:
+    REPO: ${{ steps.published.outputs.source-repository }}
+    TAG: ${{ steps.published.outputs.source-tag }}
+    SKILLS: ${{ steps.published.outputs.skills-paths }}
+  run: |
+    jq -r 'to_entries[] | "\(.key) \(.value)"' <<<"${SKILLS}" | while read -r name path; do
+      echo "${name}: ${REPO}@${TAG}/${path}"
+    done
+```
+
+| Input | Default | |
+|:------|:--------|:--|
+| `tool` | | tool name, the folder `plugins/<tool>/` |
+| `path` | `.` | catalog checkout to read |
+
+| Output | |
+|:-------|:--|
+| `version` | published version, `X.Y.Z` |
+| `source-repository` | tool repository, `owner/repo` |
+| `source-tag` | release tag of the tool, `vX.Y.Z` |
+| `source-commit` | commit of the release tag |
+| `skills-paths` | JSON object of every published skill and its path in the tool repository, the main skill first, e.g. `{"maintainer":"skills/maintainer","review":"skills/review"}` |
+| `skills-digests` | JSON object of every published skill and its digest, in the same order |
+
+`inspect` fails, naming the problem, if `provenance.json` has a schema other
+than 1 or another tool, a malformed source, a skill name or path that the
+publisher never writes, or lacks the main skill or lists it other than first;
+if `plugins/<tool>/skills/` holds a folder the record lacks or lacks a folder
+it lists; or if a folder no longer hashes to its recorded digest. It reads
+both forms of the record, with `skills` and without. Locally it prints the
+same as JSON:
+
+```bash
+npx --yes github:octomation/skills-action#vX.Y.Z inspect maintainer
+```
 
 ## 🧑‍🔧 Maintain the catalog
 

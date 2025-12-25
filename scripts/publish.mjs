@@ -27,13 +27,12 @@ import {
   digestFiles,
   formatJSON,
   isMain,
-  isRelativePath,
-  isSkillName,
   marketplaceManifest,
   parseVersion,
   pluginManifest,
   provenanceRecord,
   provenanceSkills,
+  recordedSkills,
   toolSkills,
 } from './lib.mjs'
 
@@ -272,19 +271,16 @@ export async function publish(env, { log = console.log, catalogClient, sourceCli
     }
     return out
   }
-  const recordedSkills = (record) => {
+  // recorded lists the [name, path] skills of a provenance record, the main
+  // skill first.
+  const recorded = (record) => {
     let list
     try {
-      list = [...provenanceSkills(record)]
+      list = recordedSkills(record, tool)
     } catch (err) {
-      fail(`${PLUGINS}/${tool}/${err.message}`)
-    }
-    for (const [n, { path }] of list) {
-      if (!isSkillName(n)) fail(`${PLUGINS}/${tool}/provenance.json: ${JSON.stringify(n)} is not a skill name`)
-      if (!isRelativePath(path)) fail(`${PLUGINS}/${tool}/provenance.json: skill ${n} has a path outside the repository`)
+      fail(err.message)
     }
     const main = list.findIndex(([n]) => n === tool)
-    if (main < 0) fail(`${PLUGINS}/${tool}/provenance.json does not list the main skill ${tool}`)
     return [list[main], ...list.filter((_, i) => i !== main)].map(([n, { path }]) => [n, path])
   }
   const ctag = catalogTag(tool, version)
@@ -303,7 +299,7 @@ export async function publish(env, { log = console.log, catalogClient, sourceCli
     if (tagged) {
       const raw = await fileAt(cat.rest, catalog, `${PLUGINS}/${tool}/provenance.json`, ctag)
       if (!raw) fail(`${ctag} already exists without provenance for ${tool}; a published release is frozen, ship a new version`)
-      const skills = await readSkills(recordedSkills(JSON.parse(raw.toString('utf8'))))
+      const skills = await readSkills(recorded(JSON.parse(raw.toString('utf8'))))
       const problem = await verifyPublication(cat.rest, catalog, ctag, { ...base, skills })
       if (problem) fail(`${ctag} already exists with different content (${problem}); a published release is frozen, ship a new version`)
       log(`${ctag} is already published`)
@@ -320,7 +316,7 @@ export async function publish(env, { log = console.log, catalogClient, sourceCli
         // The commit landed but the tag didn't: tag the publication commit,
         // after checking it is this release and a verified commit.
         const oid = await publicationCommit(cat.rest, catalog, tool, state.oid)
-        const skills = await readSkills(recordedSkills(record))
+        const skills = await readSkills(recorded(record))
         const release = { ...base, skills }
         const problem = await verifyPublication(cat.rest, catalog, oid, release)
         if (problem) fail(`${tool} ${version} is on main with different content: ${problem}`)
