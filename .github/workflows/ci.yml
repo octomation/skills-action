@@ -74,6 +74,13 @@ jobs:
         with:
           command: check
           path: catalog
+      - name: Inspect every published plugin
+        working-directory: catalog
+        run: |
+          shopt -s nullglob
+          for dir in plugins/*/; do
+            node "${GITHUB_WORKSPACE}/bin/octolab-skills.mjs" inspect "$(basename "${dir}")"
+          done
 
   notify:
     name: Notifying
