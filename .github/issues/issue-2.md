@@ -22,8 +22,8 @@ state: CLOSED
 stateReason: COMPLETED
 duplicateOf: null
 createdAt: 2026-11-25T18:14:51Z
-updatedAt: 2026-11-26T15:36:26Z
-lastEditedAt: 2026-11-26T15:36:26Z
+updatedAt: 2026-11-26T16:20:45Z
+lastEditedAt: 2026-11-26T16:20:45Z
 closedAt: 2026-11-26T15:28:26Z
 ---
 
@@ -102,7 +102,7 @@ $ claude plugin update maintainer@octolab
 - [x] Tests on a mixed catalog: the old and the new publisher, one tool with
       one skill and one with two, a first publication and a replay. The
       shared digest test vector covers a two-skill payload.
-- [ ] The skills CLI discovers every published skill of the plugin; the
+- [x] The skills CLI discovers every published skill of the plugin; the
       install check in the catalog's `ci (install)` compares every skill
       that the provenance of the checked tag lists.
 - [x] The README describes how a tool adds an extra skill.
