@@ -16,9 +16,13 @@ import {
   checkRange,
   parseRange,
   parseVersion,
+  provenanceRecord,
+  provenanceSkills,
   satisfies,
+  toolSkills,
 } from '../scripts/lib.mjs'
-import { REGISTRY, SKILL, skillFiles } from './fixtures.mjs'
+import { validate, validateDiscovery } from '../scripts/validate.mjs'
+import { REGISTRY, REVIEW, SKILL, registryWith, skillFiles } from './fixtures.mjs'
 
 test('parseFrontmatter reads folded blocks, quoted scalars and nested maps', () => {
   const { data, body } = parseFrontmatter(SKILL)
@@ -138,6 +142,14 @@ test('digest is length-delimited, order-independent and stable', () => {
     digestFiles([['SKILL.md', Buffer.from('hello\n')], ['references/a.md', Buffer.from('a')]]),
     'sha256:64ce802d5cef2c789ce95d306c9fcce6779c6e8166339ae47634e7f8b265a34b',
   )
+  // A two-skill payload: each folder has its own digest over paths relative to
+  // that folder; the folders are never hashed together.
+  const main = [['SKILL.md', Buffer.from('hello\n')], ['references/a.md', Buffer.from('a')]]
+  const review = [['SKILL.md', Buffer.from('review\n')], ['references/b.md', Buffer.from('b')]]
+  assert.deepEqual([digestFiles(main), digestFiles(review)], [
+    'sha256:64ce802d5cef2c789ce95d306c9fcce6779c6e8166339ae47634e7f8b265a34b',
+    'sha256:6b08e3ae572f59554e9849f24d1f37241d1362d8701684d7ed9997137360c36d',
+  ])
 })
 
 test('digestDir rejects symlinks and dotfiles', () => {
@@ -173,4 +185,122 @@ test('marketplaceManifest lists only published tools, sorted', () => {
     ],
   )
   assert.deepEqual(marketplaceManifest(REGISTRY, []).plugins, [])
+})
+
+test('checkCatalog checks extra-skills', () => {
+  assert.deepEqual(checkCatalog(registryWith(['review', 'audit-log'])), [])
+  const errors = checkCatalog(registryWith(['Review', 'indexit', 'audit', 'audit']))
+  assert.ok(errors.some((e) => e.includes('extra-skills[0]: must be kebab-case')))
+  assert.ok(errors.some((e) => e.includes('extra-skills[1]: indexit is the main skill')))
+  assert.ok(errors.some((e) => e.includes('extra-skills[3]: audit is listed twice')))
+  assert.ok(checkCatalog(registryWith('review')).some((e) => e.includes('extra-skills: must be a list')))
+  // numeric names would lead the skills map instead of the main skill
+  assert.ok(checkCatalog(registryWith(['42'])).some((e) => e.includes('extra-skills[0]: must not be a number')))
+  assert.deepEqual(checkCatalog(registryWith(['review-2'])), [])
+  // one namespace across the catalog
+  assert.ok(checkCatalog(registryWith(['zeta'])).some((e) => e.includes('zeta is already a skill of zeta')))
+  const both = registryWith(['review'])
+  both.tools.zeta['extra-skills'] = ['review']
+  assert.ok(checkCatalog(both).some((e) => e.includes('review is already a skill of indexit')))
+})
+
+test('toolSkills puts the main skill first and extra skills next to it', () => {
+  assert.deepEqual(toolSkills('indexit', REGISTRY.tools.indexit), [['indexit', 'skills/indexit']])
+  assert.deepEqual(toolSkills('indexit', { skill: 'agent/indexit', 'extra-skills': ['review'] }), [
+    ['indexit', 'agent/indexit'],
+    ['review', 'agent/review'],
+  ])
+})
+
+test('provenance keeps the single-skill form and reads both forms', () => {
+  const base = { tool: 'indexit', version: '0.2.0', repository: 'octopot/indexit', tag: 'v0.2.0', commit: 'c', publisher: 'p' }
+  const one = provenanceRecord({ ...base, skills: [{ name: 'indexit', path: 'skills/indexit', digest: 'sha256:a' }] })
+  assert.deepEqual(one, {
+    schema: 1,
+    tool: 'indexit',
+    version: '0.2.0',
+    source: { repository: 'octopot/indexit', tag: 'v0.2.0', commit: 'c', path: 'skills/indexit' },
+    digest: { algorithm: 'octolab-skill-sha256-v1', value: 'sha256:a' },
+    publisher: 'p',
+  })
+  assert.deepEqual([...provenanceSkills(one)], [['indexit', { path: 'skills/indexit', digest: 'sha256:a' }]])
+  const two = provenanceRecord({
+    ...base,
+    skills: [
+      { name: 'indexit', path: 'skills/indexit', digest: 'sha256:a' },
+      { name: 'review', path: 'skills/review', digest: 'sha256:b' },
+    ],
+  })
+  assert.equal(two.digest.value, 'sha256:a')
+  assert.deepEqual([...provenanceSkills(two).keys()], ['indexit', 'review'])
+  for (const bad of [null, [], false, 'x']) assert.throws(() => provenanceSkills({ ...one, skills: bad }), /skills must be a map/)
+})
+
+test('checkSkill checks an extra skill by its own name', () => {
+  const files = new Map([['SKILL.md', Buffer.from(REVIEW)]])
+  assert.deepEqual(checkSkill('indexit', files, 'review').errors, [])
+  assert.ok(checkSkill('indexit', files).errors.some((e) => e.includes('name: must be indexit')))
+})
+
+// catalogDir writes a catalog checkout with indexit published with skills.
+function catalogDir(registry, published, extraDirs = []) {
+  const root = mkdtempSync(join(tmpdir(), 'catalog-'))
+  writeFileSync(join(root, 'catalog.json'), JSON.stringify(registry))
+  const base = join(root, 'plugins', 'indexit')
+  const texts = { indexit: SKILL, review: REVIEW }
+  const skills = []
+  for (const name of [...published, ...extraDirs]) {
+    const files = name === 'indexit' ? skillFiles() : new Map([['SKILL.md', Buffer.from(texts[name] || REVIEW)]])
+    for (const [rel, bytes] of files) {
+      mkdirSync(join(base, 'skills', name, rel, '..'), { recursive: true })
+      writeFileSync(join(base, 'skills', name, rel), bytes)
+    }
+    if (published.includes(name)) skills.push({ name, path: `skills/${name}`, digest: digestFiles(files) })
+  }
+  mkdirSync(join(base, '.claude-plugin'), { recursive: true })
+  writeFileSync(join(base, '.claude-plugin', 'plugin.json'), JSON.stringify({ version: '0.2.0' }))
+  const prov = provenanceRecord({
+    tool: 'indexit', version: '0.2.0', repository: 'octopot/indexit', tag: 'v0.2.0', commit: 'a'.repeat(40), skills, publisher: 'p',
+  })
+  writeFileSync(join(base, 'provenance.json'), JSON.stringify(prov))
+  return root
+}
+
+test('validate: files = provenance ⊆ registry', () => {
+  // the new publisher with two skills
+  assert.deepEqual(validate(catalogDir(registryWith(['review']), ['indexit', 'review'])), [])
+  // the old publisher, or a skill registered for the next release
+  assert.deepEqual(validate(catalogDir(registryWith(['review']), ['indexit'])), [])
+  assert.deepEqual(validate(catalogDir(REGISTRY, ['indexit'])), [])
+  // a published skill that is not registered
+  assert.ok(validate(catalogDir(REGISTRY, ['indexit', 'review'])).some((e) => e.includes('review is not registered')))
+  // a skill folder the provenance does not list, registered or not
+  for (const registry of [REGISTRY, registryWith(['review'])]) {
+    const errors = validate(catalogDir(registry, ['indexit'], ['review']))
+    assert.ok(errors.some((e) => e.includes('skills/review/SKILL.md: unexpected file')), errors.join('\n'))
+  }
+})
+
+test('validateDiscovery expects every published skill', () => {
+  const root = catalogDir(registryWith(['review']), ['indexit', 'review'])
+  const installed = (...names) => names.map((name) => ({ name, status: 'installed' }))
+  assert.deepEqual(validateDiscovery(root, installed('review', 'indexit')), [])
+  assert.match(validateDiscovery(root, installed('indexit'))[0], /expected \[indexit, review\]/)
+})
+
+test('validate reports an invalid registry without throwing', () => {
+  const cases = [
+    [(r) => (r.tools.indexit['extra-skills'] = 'review'), /extra-skills: must be a list/],
+    [(r) => (r.tools.indexit['extra-skills'] = [1]), /extra-skills\[0\]: must be kebab-case/],
+    [(r) => delete r.tools.indexit.skill, /indexit\.skill: must be a relative path/],
+  ]
+  for (const [change, error] of cases) {
+    const registry = structuredClone(REGISTRY)
+    change(registry)
+    const root = catalogDir(registryWith(['review']), ['indexit', 'review'])
+    writeFileSync(join(root, 'catalog.json'), JSON.stringify(registry))
+    let errors
+    assert.doesNotThrow(() => (errors = validate(root)))
+    assert.ok(errors.some((e) => error.test(e)), errors.join('\n'))
+  }
 })

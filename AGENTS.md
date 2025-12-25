@@ -23,8 +23,8 @@ tests/                   unit tests on a fake GitHub API
 No npm dependencies and no build: the runner runs the sources on its own
 Node.js 24, so there is no `dist/` to keep in step. Node 22 or later locally. The skill contract, the digest and the
 catalog tags are defined in the catalog's `AGENTS.md`; `tests/lib.test.mjs`
-holds the digest's shared test vector, which tools that embed their skill
-compute too.
+holds the digest's shared test vectors, one skill and a two-skill payload
+with a digest per folder, which tools that embed their skills compute too.
 
 ## Checks
 

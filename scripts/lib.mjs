@@ -50,11 +50,22 @@ export function checkCatalog(catalog) {
   if (!m.description) errors.push('marketplace.description: required')
   if (!m.owner?.name) errors.push('marketplace.owner.name: required')
   const tools = catalog.tools || {}
+  // Skill names share one namespace across the catalog: the skills CLI
+  // installs skills by name, so a second skill of the same name is lost.
+  const owner = new Map(Object.keys(tools).map((name) => [name, name]))
+  for (const [name, t] of Object.entries(tools)) {
+    if (!Array.isArray(t['extra-skills'])) continue
+    for (const n of new Set(t['extra-skills'])) {
+      if (typeof n !== 'string' || n === name) continue
+      if (owner.has(n)) errors.push(`tools.${name}.extra-skills: ${n} is already a skill of ${owner.get(n)}`)
+      else owner.set(n, name)
+    }
+  }
   for (const [name, t] of Object.entries(tools)) {
     const at = `tools.${name}`
     if (!NAME.test(name) || name.length > 64) errors.push(`${at}: name must be kebab-case, at most 64 chars`)
     if (!/^[\w.-]+\/[\w.-]+$/.test(t.repository || '')) errors.push(`${at}.repository: must be owner/repo`)
-    if (!t.skill || t.skill.startsWith('/') || t.skill.split('/').includes('..')) {
+    if (!isRelativePath(t.skill)) {
       errors.push(`${at}.skill: must be a relative path inside the repository`)
     } else if (posix.basename(t.skill) !== name) {
       errors.push(`${at}.skill: directory must be named ${name}`)
@@ -67,11 +78,57 @@ export function checkCatalog(catalog) {
       errors.push(`${at}.homepage: must be an https URL`)
     }
     if (!t.license) errors.push(`${at}.license: required`)
+    const extra = t['extra-skills']
+    if (extra !== undefined) {
+      if (!Array.isArray(extra)) errors.push(`${at}.extra-skills: must be a list of skill names`)
+      else {
+        for (const [i, n] of extra.entries()) {
+          if (!isSkillName(n)) {
+            errors.push(`${at}.extra-skills[${i}]: must be kebab-case, at most 64 chars`)
+          } else if (/^\d+$/.test(n)) {
+            // JSON objects list such keys first, so the main skill would not lead.
+            errors.push(`${at}.extra-skills[${i}]: must not be a number`)
+          } else if (n === name) errors.push(`${at}.extra-skills[${i}]: ${n} is the main skill`)
+          else if (extra.indexOf(n) !== i) errors.push(`${at}.extra-skills[${i}]: ${n} is listed twice`)
+        }
+      }
+    }
     if (t.keywords && !(Array.isArray(t.keywords) && t.keywords.every((k) => typeof k === 'string'))) {
       errors.push(`${at}.keywords: must be a list of strings`)
     }
   }
   return errors
+}
+
+// toolSkills lists the skills a registered tool may publish, as [name, path in
+// the tool's repository]: the main skill first, then extra-skills in registry
+// order. An extra skill is the sibling folder of the main one.
+export function toolSkills(name, entry) {
+  const dir = posix.dirname(entry.skill)
+  return [[name, entry.skill], ...(entry['extra-skills'] || []).map((n) => [n, posix.join(dir, n)])]
+}
+
+// isRelativePath reports whether path stays inside the repository.
+export function isRelativePath(path) {
+  return typeof path === 'string' && path !== '' && !path.startsWith('/') && !path.split('/').includes('..')
+}
+
+// isSkillName reports whether name may name a skill.
+export function isSkillName(name) {
+  return typeof name === 'string' && NAME.test(name) && name.length <= 64
+}
+
+// provenanceSkills reads the skills a provenance record published, as a map
+// from name to { path, digest } in recorded order. A record without `skills`,
+// written by v0.1 or for a single-skill tool, holds the main skill only.
+export function provenanceSkills(record) {
+  if (record.skills !== undefined) {
+    if (!record.skills || typeof record.skills !== 'object' || Array.isArray(record.skills)) {
+      throw new Error('provenance.json: skills must be a map from skill name to { path, digest }')
+    }
+    return new Map(Object.entries(record.skills).map(([n, s]) => [n, { path: s?.path, digest: s?.digest }]))
+  }
+  return new Map([[record.tool, { path: record.source?.path, digest: record.digest?.value }]])
 }
 
 // --- frontmatter ----------------------------------------------------------------
@@ -321,7 +378,8 @@ export function digestDir(dir) {
 
 // checkSkill validates a skill directory against the Agent Skills spec and the
 // OctoLab metadata contract. files maps relative paths to contents.
-export function checkSkill(tool, files) {
+// name is the skill's own name, the tool for the main skill.
+export function checkSkill(tool, files, name = tool) {
   const errors = []
   const text = files.get('SKILL.md')
   if (text === undefined) return { errors: ['SKILL.md: missing'] }
@@ -332,7 +390,7 @@ export function checkSkill(tool, files) {
     return { errors: [`SKILL.md: ${err.message}`] }
   }
   const d = fm.data
-  if (d.name !== tool) errors.push(`SKILL.md name: must be ${tool}`)
+  if (d.name !== name) errors.push(`SKILL.md name: must be ${name}`)
   if (typeof d.description !== 'string' || !d.description.trim() || d.description.length > 1024) {
     errors.push('SKILL.md description: required, at most 1024 characters')
   }
@@ -404,13 +462,20 @@ export function marketplaceManifest(catalog, published) {
   }
 }
 
-export function provenanceRecord({ tool, version, repository, tag, commit, skill, digest, publisher }) {
+// provenanceRecord describes a publication. skills is [{ name, path, digest }]
+// with the main skill first; `source.path` and `digest` stay those of the main
+// skill, and a single-skill record has no `skills` key, as in v0.1.
+export function provenanceRecord({ tool, version, repository, tag, commit, skills, publisher }) {
+  const main = skills[0]
   return {
     schema: PROVENANCE_SCHEMA,
     tool,
     version,
-    source: { repository, tag, commit, path: skill },
-    digest: { algorithm: DIGEST_ALGORITHM, value: digest },
+    source: { repository, tag, commit, path: main.path },
+    digest: { algorithm: DIGEST_ALGORITHM, value: main.digest },
+    ...(skills.length > 1
+      ? { skills: Object.fromEntries(skills.map((s) => [s.name, { path: s.path, digest: s.digest }])) }
+      : {}),
     publisher,
   }
 }

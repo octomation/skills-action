@@ -47,3 +47,23 @@ export const REGISTRY = {
     },
   },
 }
+
+// An extra skill of indexit: the sibling folder skills/review.
+export const REVIEW = `---
+name: review
+description: Review Telegram exports made with indexit.
+metadata:
+  version: "0.2.0"
+  tool: indexit
+  tool-version-range: ">=0.2.0 <0.3.0"
+---
+
+# review
+`
+
+// registryWith returns REGISTRY with extra skills registered for indexit.
+export function registryWith(extra) {
+  const registry = structuredClone(REGISTRY)
+  registry.tools.indexit['extra-skills'] = extra
+  return registry
+}

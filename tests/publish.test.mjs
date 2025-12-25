@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import { publish } from '../scripts/publish.mjs'
-import { REGISTRY, SKILL } from './fixtures.mjs'
+import { REGISTRY, REVIEW, SKILL, registryWith } from './fixtures.mjs'
 
 const b64 = (s) => Buffer.from(s).toString('base64')
 const SHA = 'a'.repeat(40)
@@ -10,12 +10,12 @@ const SHA = 'a'.repeat(40)
 // fakeGitHub models the handful of endpoints publish.mjs uses: a source
 // repository with a signed tag and release, and a catalog repository whose
 // main branch is a list of snapshots (path -> contents).
-function fakeGitHub({ skill = SKILL, signed = true, lightweight = false, commitSigned = true, release = { draft: false, prerelease: false } } = {}) {
+function fakeGitHub({ registry = REGISTRY, skill = SKILL, signed = true, lightweight = false, commitSigned = true, release = { draft: false, prerelease: false } } = {}) {
   const source = {
     tag: lightweight ? { type: 'commit', sha: SHA } : { type: 'tag', sha: 'tagobj' },
     files: { 'skills/indexit/SKILL.md': skill, 'skills/indexit/references/cli.md': '# CLI\n', 'main.go': 'package main' },
   }
-  const commits = [{ oid: 'c0', files: { 'catalog.json': JSON.stringify(REGISTRY) } }]
+  const commits = [{ oid: 'c0', files: { 'catalog.json': JSON.stringify(registry) } }]
   const tags = {}
   const calls = { graphql: 0 }
   let moveOnce = null
@@ -112,6 +112,8 @@ function fakeGitHub({ skill = SKILL, signed = true, lightweight = false, commitS
       moveOnce = () => commits.push({ oid: `x${commits.length}`, files: { ...head().files, 'README.md': 'x' } })
     },
     source,
+    // register replaces catalog.json on main, as a registry change would.
+    register: (next) => commits.push({ oid: `r${commits.length}`, files: { ...head().files, 'catalog.json': JSON.stringify(next) } }),
   }
 }
 
@@ -288,4 +290,164 @@ test('refuses submodules in the skill', async () => {
   const gh = fakeGitHub()
   gh.source.files['skills/indexit/vendor'] = null
   await assert.rejects(publish(ENV, gh.clients), /submodules/)
+})
+
+// --- extra skills -------------------------------------------------------------
+
+const withReview = (gh) => {
+  gh.source.files['skills/review/SKILL.md'] = REVIEW
+  gh.source.files['skills/stray/SKILL.md'] = 'not registered'
+  return gh
+}
+
+// The provenance.json v0.1.1 writes for the fixture release, byte for byte.
+const SINGLE_PROVENANCE = `{
+  "schema": 1,
+  "tool": "indexit",
+  "version": "0.2.0",
+  "source": {
+    "repository": "octopot/indexit",
+    "tag": "v0.2.0",
+    "commit": "${SHA}",
+    "path": "skills/indexit"
+  },
+  "digest": {
+    "algorithm": "octolab-skill-sha256-v1",
+    "value": "sha256:ba8e243084ea9761c874d2ec5cc65ae76bd0a3f33e46f6f0ce2e68ba2b0b0fbd"
+  },
+  "publisher": "octomation/skills-action"
+}
+`
+
+test('a single-skill tool publishes as before', async () => {
+  const gh = fakeGitHub()
+  const out = await publish(ENV, gh.clients)
+  assert.equal(gh.head().files['plugins/indexit/provenance.json'], SINGLE_PROVENANCE)
+  assert.deepEqual(JSON.parse(out['skills-digests']), { indexit: out['payload-digest'] })
+  assert.equal(gh.head().message.body, `Source: octopot/indexit@${SHA} (v0.2.0)\nDigest: ${out['payload-digest']}`)
+})
+
+test('publishes the registered extra skills, not stray folders', async () => {
+  const gh = withReview(fakeGitHub({ registry: registryWith(['review']) }))
+  const out = await publish(ENV, gh.clients)
+  assert.equal(out.changed, true)
+  const files = gh.head().files
+  assert.equal(files['plugins/indexit/skills/review/SKILL.md'], REVIEW)
+  assert.equal(files['plugins/indexit/skills/stray/SKILL.md'], undefined)
+  const prov = JSON.parse(files['plugins/indexit/provenance.json'])
+  const digests = JSON.parse(out['skills-digests'])
+  assert.deepEqual(Object.keys(digests), ['indexit', 'review'])
+  assert.equal(digests.indexit, out['payload-digest'])
+  assert.equal(prov.digest.value, out['payload-digest'])
+  assert.equal(prov.source.path, 'skills/indexit')
+  assert.deepEqual(prov.skills, {
+    indexit: { path: 'skills/indexit', digest: digests.indexit },
+    review: { path: 'skills/review', digest: digests.review },
+  })
+  // A replay writes nothing and reports the same digests.
+  const again = await publish(ENV, gh.clients)
+  assert.equal(again.changed, false)
+  assert.equal(again['skills-digests'], out['skills-digests'])
+  assert.equal(gh.calls.graphql, 1)
+})
+
+test('a replay compares with its provenance, not with the registry gained since', async () => {
+  // The old publisher's case: published with one skill, then review is registered.
+  const gh = withReview(fakeGitHub())
+  const first = await publish(ENV, gh.clients)
+  gh.register(registryWith(['review']))
+  const tagged = await publish(ENV, gh.clients)
+  assert.equal(tagged.changed, false)
+  assert.equal(tagged['skills-digests'], first['skills-digests'])
+  // The same holds when only the tag is missing.
+  delete gh.tags['indexit--v0.2.0']
+  const recovered = await publish(ENV, gh.clients)
+  assert.equal(recovered.changed, false)
+  assert.equal(gh.tags['indexit--v0.2.0'], 'c1')
+  assert.equal(gh.calls.graphql, 1)
+})
+
+test('a replay refuses a published extra skill whose source changed', async () => {
+  const gh = withReview(fakeGitHub({ registry: registryWith(['review']) }))
+  await publish(ENV, gh.clients)
+  gh.source.files['skills/review/SKILL.md'] = REVIEW + '\nchanged\n'
+  await assert.rejects(publish(ENV, gh.clients), /frozen/)
+})
+
+test('a new publication requires every registered skill at the source tag', async () => {
+  const gh = fakeGitHub({ registry: registryWith(['review']) })
+  await assert.rejects(publish(ENV, gh.clients), /no files under skills\/review/)
+  assert.equal(gh.calls.graphql, 0)
+})
+
+test('an extra skill passes the checks of the main one', async () => {
+  const cases = [
+    [REVIEW.replace('name: review', 'name: other'), /name: must be review/],
+    [REVIEW.replace('tool: indexit', 'tool: zeta'), /metadata.tool: must be indexit/],
+    [REVIEW.replace('version: "0.2.0"', 'version: "0.2.1"').replace('>=0.2.0', '>=0.2.1'), /does not match v0.2.0/],
+  ]
+  for (const [text, error] of cases) {
+    const gh = fakeGitHub({ registry: registryWith(['review']) })
+    gh.source.files['skills/review/SKILL.md'] = text
+    await assert.rejects(publish(ENV, gh.clients), error)
+  }
+})
+
+test('a new version drops a skill folder no longer registered', async () => {
+  const gh = withReview(fakeGitHub({ registry: registryWith(['review']) }))
+  await publish(ENV, gh.clients)
+  gh.register(REGISTRY)
+  const next = SKILL.replaceAll('0.2.0', '0.2.1').replace('<0.3.0', '<0.3.0')
+  gh.source.files['skills/indexit/SKILL.md'] = next
+  const rest = gh.clients.sourceClient.rest
+  gh.clients.sourceClient.rest = async (method, path, body) =>
+    path.includes('/git/ref/tags/v0.2.1') ? rest(method, path.replace('v0.2.1', 'v0.2.0'), body) : rest(method, path, body)
+  const out = await publish({ ...ENV, SOURCE_TAG: 'v0.2.1' }, gh.clients)
+  assert.equal(out.changed, true)
+  assert.equal(gh.head().files['plugins/indexit/skills/review/SKILL.md'], undefined)
+  assert.equal(JSON.parse(gh.head().files['plugins/indexit/provenance.json']).skills, undefined)
+})
+
+test('a mixed catalog: a single-skill tool publishes while another registers extra skills', async () => {
+  const registry = structuredClone(REGISTRY)
+  registry.tools.zeta['extra-skills'] = ['review']
+  const gh = withReview(fakeGitHub({ registry }))
+  const out = await publish(ENV, gh.clients)
+  assert.equal(out.changed, true)
+  const files = gh.head().files
+  assert.equal(files['plugins/indexit/provenance.json'], SINGLE_PROVENANCE)
+  assert.deepEqual(
+    Object.keys(files).filter((p) => p.startsWith('plugins/')).sort(),
+    [
+      'plugins/indexit/.claude-plugin/plugin.json',
+      'plugins/indexit/provenance.json',
+      'plugins/indexit/skills/indexit/SKILL.md',
+      'plugins/indexit/skills/indexit/references/cli.md',
+    ],
+  )
+  assert.deepEqual(JSON.parse(out['skills-digests']), { indexit: out['payload-digest'] })
+})
+
+test('a replay refuses skill names and paths from provenance that leave the repository', async () => {
+  const cases = [
+    [{ indexit: 'skills/indexit', '../x': 'skills/x' }, /not a skill name/],
+    [{ indexit: 'skills/indexit', review: '../secrets' }, /path outside the repository/],
+    [{ indexit: 'skills/indexit', review: '/etc' }, /path outside the repository/],
+  ]
+  for (const [paths, error] of cases) {
+    const gh = withReview(fakeGitHub({ registry: registryWith(['review']) }))
+    await publish(ENV, gh.clients)
+    const file = 'plugins/indexit/provenance.json'
+    const prov = JSON.parse(gh.head().files[file])
+    prov.skills = Object.fromEntries(Object.entries(paths).map(([n, path]) => [n, { path, digest: 'sha256:x' }]))
+    gh.head().files[file] = JSON.stringify(prov)
+    let reads = 0
+    const rest = gh.clients.sourceClient.rest
+    gh.clients.sourceClient.rest = async (method, path, body) => {
+      if (path.startsWith('/repos/octopot/indexit/git/trees/')) reads++
+      return rest(method, path, body)
+    }
+    await assert.rejects(publish(ENV, gh.clients), error)
+    assert.equal(reads, 0, 'nothing is read from the source with a refused path')
+  }
 })

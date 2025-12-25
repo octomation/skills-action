@@ -11,7 +11,8 @@
 //   CATALOG_TOKEN         token with contents: write on the catalog
 //   SOURCE_TOKEN          token that can read the tool repository (github.token)
 //   PUBLISHER             publisher identity for provenance.json
-//   GITHUB_OUTPUT         step outputs: changed, catalog-commit, catalog-tag, payload-digest
+//   GITHUB_OUTPUT         step outputs: changed, catalog-commit, catalog-tag, payload-digest,
+//                         skills-digests
 
 import { appendFileSync } from 'node:fs'
 
@@ -26,10 +27,14 @@ import {
   digestFiles,
   formatJSON,
   isMain,
+  isRelativePath,
+  isSkillName,
   marketplaceManifest,
   parseVersion,
   pluginManifest,
   provenanceRecord,
+  provenanceSkills,
+  toolSkills,
 } from './lib.mjs'
 
 const API = process.env.GITHUB_API_URL || 'https://api.github.com'
@@ -147,10 +152,11 @@ async function publicationCommit(rest, catalog, tool, head) {
 }
 
 // verifyPublication checks that a catalog ref really publishes this release:
-// its provenance names the same source, and its files, hashed again rather
-// than trusted from provenance, give the same digest. Returns a problem or null.
+// its provenance names the same source and the same skills with the same
+// digests, and the files of every skill, hashed again rather than trusted from
+// provenance, give those digests. Returns a problem or null.
 async function verifyPublication(rest, catalog, ref, release) {
-  const { tool, version, repository, tag, commit, digest } = release
+  const { tool, version, repository, tag, commit, skills } = release
   const raw = await fileAt(rest, catalog, `${PLUGINS}/${tool}/provenance.json`, ref)
   const record = raw && JSON.parse(raw.toString('utf8'))
   if (!record) return `${ref} has no provenance for ${tool}`
@@ -158,11 +164,21 @@ async function verifyPublication(rest, catalog, ref, release) {
   if (record.version !== version || s.repository !== repository || s.tag !== tag || s.commit !== commit) {
     return `${ref} publishes ${s.repository}@${s.tag} (${s.commit}), not ${repository}@${tag} (${commit})`
   }
-  if (record.digest?.value !== digest) return `${ref} records digest ${record.digest?.value}, not ${digest}`
-  // ref may be a commit or a tag name: the trees API accepts both.
-  const files = await readPayload(rest, { repository: catalog, commit: ref, skill: `${PLUGINS}/${tool}/skills/${tool}` })
-  const actual = digestFiles(files)
-  return actual === digest ? null : `${ref} holds files that hash to ${actual}, not ${digest}`
+  const recorded = provenanceSkills(record)
+  const names = (list) => [...list].sort().join(', ')
+  if (names(recorded.keys()) !== names(skills.map((k) => k.name))) {
+    return `${ref} publishes the skills [${names(recorded.keys())}], not [${names(skills.map((k) => k.name))}]`
+  }
+  if (record.digest?.value !== skills[0].digest) return `${ref} records digest ${record.digest?.value}, not ${skills[0].digest}`
+  for (const { name, path, digest } of skills) {
+    const r = recorded.get(name)
+    if (r.path !== path || r.digest !== digest) return `${ref} records ${name} as ${r.path} ${r.digest}, not ${path} ${digest}`
+    // ref may be a commit or a tag name: the trees API accepts both.
+    const files = await readPayload(rest, { repository: catalog, commit: ref, skill: `${PLUGINS}/${tool}/skills/${name}` })
+    const actual = digestFiles(files)
+    if (actual !== digest) return `${ref} holds ${name} files that hash to ${actual}, not ${digest}`
+  }
+  return null
 }
 
 // requireVerified waits briefly for GitHub to report the commit as verified;
@@ -234,17 +250,50 @@ export async function publish(env, { log = console.log, catalogClient, sourceCli
     tag,
     sha: env.SOURCE_SHA,
   })
-  const files = await readPayload(src.rest, { repository: entry.repository, commit, skill: entry.skill })
-  const { errors, frontmatter } = checkSkill(tool, files)
-  if (errors.length) fail(`${entry.repository}@${tag}/${entry.skill}: ${errors.join('; ')}`)
-  if (frontmatter.metadata.version !== version) {
-    fail(`SKILL.md metadata.version ${frontmatter.metadata.version} does not match ${tag}`)
+  // readSkills reads and checks the given [name, path] skills at the source
+  // commit. A new publication reads every registered skill; a repeated one
+  // reads the skills its provenance lists, whatever the registry says now.
+  const cache = new Map()
+  const readSkills = async (list) => {
+    const out = []
+    for (const [name, path] of list) {
+      if (!cache.has(path)) {
+        const files = await readPayload(src.rest, { repository: entry.repository, commit, skill: path })
+        const { errors, frontmatter } = checkSkill(tool, files, name)
+        if (errors.length) fail(`${entry.repository}@${tag}/${path}: ${errors.join('; ')}`)
+        if (frontmatter.metadata.version !== version) {
+          fail(`${path}/SKILL.md metadata.version ${frontmatter.metadata.version} does not match ${tag}`)
+        }
+        const digest = digestFiles(files)
+        log(`${tool} ${tag}: ${path}: ${files.size} file(s), ${digest}`)
+        cache.set(path, { files, digest })
+      }
+      out.push({ name, path, ...cache.get(path) })
+    }
+    return out
   }
-  const digest = digestFiles(files)
+  const recordedSkills = (record) => {
+    let list
+    try {
+      list = [...provenanceSkills(record)]
+    } catch (err) {
+      fail(`${PLUGINS}/${tool}/${err.message}`)
+    }
+    for (const [n, { path }] of list) {
+      if (!isSkillName(n)) fail(`${PLUGINS}/${tool}/provenance.json: ${JSON.stringify(n)} is not a skill name`)
+      if (!isRelativePath(path)) fail(`${PLUGINS}/${tool}/provenance.json: skill ${n} has a path outside the repository`)
+    }
+    const main = list.findIndex(([n]) => n === tool)
+    if (main < 0) fail(`${PLUGINS}/${tool}/provenance.json does not list the main skill ${tool}`)
+    return [list[main], ...list.filter((_, i) => i !== main)].map(([n, { path }]) => [n, path])
+  }
   const ctag = catalogTag(tool, version)
-  const release = { tool, version, repository: entry.repository, tag, commit, digest }
-  const result = { changed: false, 'catalog-tag': ctag, 'payload-digest': digest, 'catalog-commit': '' }
-  log(`${tool} ${tag}: ${files.size} file(s), ${digest}`)
+  const base = { tool, version, repository: entry.repository, tag, commit }
+  const outputs = (skills) => ({
+    'catalog-tag': ctag,
+    'payload-digest': skills[0].digest,
+    'skills-digests': JSON.stringify(Object.fromEntries(skills.map((k) => [k.name, k.digest]))),
+  })
 
   for (let attempt = 1; ; attempt++) {
     // A published release is frozen: the tag either matches or the run fails.
@@ -252,10 +301,13 @@ export async function publish(env, { log = console.log, catalogClient, sourceCli
     // have finished in between.
     const tagged = await cat.rest('GET', `/repos/${catalog}/git/ref/tags/${encodeURIComponent(ctag)}`)
     if (tagged) {
-      const problem = await verifyPublication(cat.rest, catalog, ctag, release)
+      const raw = await fileAt(cat.rest, catalog, `${PLUGINS}/${tool}/provenance.json`, ctag)
+      if (!raw) fail(`${ctag} already exists without provenance for ${tool}; a published release is frozen, ship a new version`)
+      const skills = await readSkills(recordedSkills(JSON.parse(raw.toString('utf8'))))
+      const problem = await verifyPublication(cat.rest, catalog, ctag, { ...base, skills })
       if (problem) fail(`${ctag} already exists with different content (${problem}); a published release is frozen, ship a new version`)
       log(`${ctag} is already published`)
-      return { ...result, 'catalog-commit': tagged.object.sha }
+      return { changed: false, ...outputs(skills), 'catalog-commit': tagged.object.sha }
     }
 
     const current = await fileAt(cat.rest, catalog, `${PLUGINS}/${tool}/provenance.json`, state.oid)
@@ -268,17 +320,24 @@ export async function publish(env, { log = console.log, catalogClient, sourceCli
         // The commit landed but the tag didn't: tag the publication commit,
         // after checking it is this release and a verified commit.
         const oid = await publicationCommit(cat.rest, catalog, tool, state.oid)
+        const skills = await readSkills(recordedSkills(record))
+        const release = { ...base, skills }
         const problem = await verifyPublication(cat.rest, catalog, oid, release)
         if (problem) fail(`${tool} ${version} is on main with different content: ${problem}`)
         log(`${tool} ${version} is on main without ${ctag}; tagging ${oid}`)
         await requireVerified(cat.rest, catalog, oid, wait)
-        return { ...result, 'catalog-commit': await createTag(cat.rest, catalog, ctag, oid, release) }
+        return { changed: false, ...outputs(skills), 'catalog-commit': await createTag(cat.rest, catalog, ctag, oid, release) }
       }
     }
 
+    const skills = await readSkills(toolSkills(tool, entry))
+    const release = { ...base, skills }
+
     const root = `${PLUGINS}/${tool}`
     const additions = new Map()
-    for (const [rel, bytes] of files) additions.set(`${root}/skills/${tool}/${rel}`, bytes)
+    for (const { name, files } of skills) {
+      for (const [rel, bytes] of files) additions.set(`${root}/skills/${name}/${rel}`, bytes)
+    }
     additions.set(`${root}/.claude-plugin/plugin.json`, formatJSON(pluginManifest(tool, entry, version)))
     additions.set(
       `${root}/provenance.json`,
@@ -289,8 +348,7 @@ export async function publish(env, { log = console.log, catalogClient, sourceCli
           repository: entry.repository,
           tag,
           commit,
-          skill: entry.skill,
-          digest,
+          skills,
           publisher: env.PUBLISHER || 'octomation/skills-action',
         }),
       ),
@@ -304,7 +362,9 @@ export async function publish(env, { log = console.log, catalogClient, sourceCli
 
     const message = {
       headline: `chore(${tool}): publish ${tag}`,
-      body: `Source: ${entry.repository}@${commit} (${tag})\nDigest: ${digest}`,
+      body: `Source: ${entry.repository}@${commit} (${tag})\n${
+        skills.length > 1 ? skills.map((k) => `Digest: ${k.digest} (${k.name})`).join('\n') : `Digest: ${skills[0].digest}`
+      }`,
     }
     let created
     try {
@@ -336,7 +396,7 @@ export async function publish(env, { log = console.log, catalogClient, sourceCli
     if (!created.signature?.isValid) await requireVerified(cat.rest, catalog, created.oid, wait)
     const oid = await createTag(cat.rest, catalog, ctag, created.oid, release)
     log(`published ${created.url} as ${ctag}`)
-    return { ...result, changed: true, 'catalog-commit': oid }
+    return { changed: true, ...outputs(skills), 'catalog-commit': oid }
   }
 }
 

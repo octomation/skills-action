@@ -49,7 +49,8 @@ The action runs on the runner's own Node.js, with no setup step.
 | `changed` | whether this run wrote a new publication |
 | `catalog-commit` | catalog commit that holds the release |
 | `catalog-tag` | catalog tag of the release, `<tool>--vX.Y.Z` |
-| `payload-digest` | `octolab-skill-sha256-v1` digest of the published skill |
+| `payload-digest` | `octolab-skill-sha256-v1` digest of the main skill |
+| `skills-digests` | JSON object of every published skill and its digest, e.g. `{"indexit":"sha256:…"}` |
 
 `source-tag` and `source-sha` default to the tag push that triggered the
 workflow. To re-run a publication from `workflow_dispatch`, pass both
@@ -62,8 +63,9 @@ The action:
 2. Requires the release tag to be annotated, signed and verified by GitHub, to
    point at the released commit, and to have a published, non-prerelease GitHub
    release.
-3. Reads the skill directory at that commit with `github-token`, validates it, and requires `metadata.version` to equal the
-   tag.
+3. Reads every registered skill directory at that commit with
+   `github-token`, validates it, and requires `metadata.version` to equal
+   the tag.
 4. Writes `plugins/<tool>/` and regenerates `marketplace.json` in one
    `createCommitOnBranch` call, `chore(<tool>): publish vX.Y.Z`. If another
    tool published first, it re-reads `main` and retries; if the tool's
@@ -75,6 +77,7 @@ Running it again is safe:
 | State | Result |
 | --- | --- |
 | Tag exists with the same source and files | success, nothing written |
+| Same, after the registry gained an extra skill | success, nothing written: a replay compares with its own `provenance.json` |
 | Version on `main` without its tag | tag the commit that published it, after checking it and only if GitHub shows it verified |
 | Another run created the tag for the same publication | success |
 | Tag exists with a different source or files | failure: the release is frozen |
@@ -84,6 +87,52 @@ Running it again is safe:
 `provenance.json` trusted. Submodules, symlinks and dotfiles in a skill fail
 the publication. Payload files are published as regular files: executable
 bits are not kept.
+
+## 🧩 Extra skills
+
+A tool may publish more skills than its main one, such as a review skill next
+to the skill that drives its CLI. Agents see them as `<tool>:<name>`, e.g.
+`maintainer:review`.
+
+1. Put the skill in the sibling folder of the main skill: with `skill:
+   skills/maintainer`, the skill `review` lives in `skills/review/`. Its
+   `name` equals the folder, `metadata.tool` is the tool, and the rest of the
+   frontmatter follows the rules of the main skill, `metadata.version` equal
+   to the release tag included.
+2. Register it in the catalog's `catalog.json`; a folder that is not
+   registered is not published. Skill names are unique across the catalog,
+   since the skills CLI installs skills by name: an extra skill can't be
+   named after a tool or another tool's extra skill.
+
+   ```json
+   "maintainer": {
+     "repository": "octomation/maintainer",
+     "skill": "skills/maintainer",
+     "extra-skills": ["review"]
+   }
+   ```
+
+3. Release the tool with the action at v0.2.0 or later. A new publication
+   reads every registered skill at the release tag and fails if one is
+   missing there, so register a skill only once the release that ships it is
+   near; a registered skill that a published version lacks is valid.
+
+Roll it out in this order: the catalog's CI moves to v0.2.0 first, then the
+catalog registers `extra-skills`, then the tool releases with both skills.
+`check` before v0.2.0 accepts the `extra-skills` key, but refuses a plugin
+that holds `skills/<name>/` of an extra skill.
+
+The plugin then holds `skills/<tool>/` and `skills/<name>/` for every
+published skill. `provenance.json` keeps `version`, `source` and `digest` of
+the main skill, and adds `skills`, a map from each published skill, the main
+one first and then in the order of `extra-skills`, to its `path` in the tool's
+repository and its digest, computed with `digest.algorithm` over that folder
+alone. A tool with one skill has no `skills` key and no other change. `check`
+requires the plugin's skill folders to be those of `provenance.json`, each
+registered for the tool.
+
+Publishers before v0.2.0 ignore `extra-skills` and publish the main skill
+only, which `check` v0.2.0 and later accepts.
 
 ## 🔍 Check the catalog
 
@@ -101,7 +150,7 @@ The catalog's CI runs the same code on its checkout:
 or a `<tool>--v*` tag is invalid, or `claude plugin validate` reports a
 finding; it needs `claude` on `PATH`. `discovery` is the absolute path to the
 output of `npx skills add <catalog> --skill '*' --json`, compared with the
-published plugins. `path` selects a checkout other than the workspace.
+published skills of every plugin. `path` selects a checkout other than the workspace.
 
 ## 🧑‍🔧 Maintain the catalog
 

@@ -1,6 +1,6 @@
 name: OctoLab skills
 description: >-
-  Publishes a tool's released agent skill to the octolab/skills catalog, or
+  Publishes a tool's released agent skills to the octolab/skills catalog, or
   checks a catalog checkout. Run publish from the tool's release workflow
   after the GitHub release exists; run check from the catalog's CI.
 author: OctoLab
@@ -52,7 +52,9 @@ outputs:
   catalog-tag:
     description: publish. Catalog tag of this release, <tool>--v<version>.
   payload-digest:
-    description: publish. Digest of the published skill directory.
+    description: publish. Digest of the main skill's directory.
+  skills-digests:
+    description: publish. JSON object of every published skill's name and digest, the main skill first.
 
 runs:
   using: node24
