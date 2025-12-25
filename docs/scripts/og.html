@@ -1,0 +1,55 @@
+<!doctype html>
+<!-- The source of public/og.png: render it with scripts/og.mjs. The run on the
+     right is the Publish run of the landing page (components/run.jsx), held
+     still with every step passed. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../app/brand.css">
+<style>
+  html, body { margin: 0; width: 1733px; height: 908px; overflow: hidden; }
+  body { position: relative; display: grid; grid-template-columns: 820px 1fr; align-items: center; gap: 40px; padding: 0 96px; box-sizing: border-box;
+         background: radial-gradient(110% 90% at 8% 0%, #ffffff 0%, #f8f9fb 50%, #edf0f5 100%); color: #172338; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .mark { display: flex; align-items: center; gap: 20px; font: 750 60px/1 -apple-system, sans-serif; letter-spacing: -2.4px; }
+  .mark img { width: 72px; height: 72px; }
+  h1 { margin: 64px 0 0; font: 650 96px/1.04 -apple-system, sans-serif; letter-spacing: -5px; }
+  h1 em { font-style: normal; color: #1f5fae; }
+  .line { margin: 36px 0 0; font: 26px/1.4 ui-monospace, Menlo, monospace; color: #5a6475; }
+  .version { position: absolute; left: 96px; bottom: 64px; font: 600 26px/1 ui-monospace, Menlo, monospace; color: #1f5fae; }
+  .run { border: 1px solid #2e3d5c; border-radius: 16px; background: #15213a; color: #e6ebf4; box-shadow: 18px 22px 0 #dde2ea; overflow: hidden; font: 19px/1.7 ui-monospace, Menlo, monospace; }
+  .bar { display: flex; justify-content: space-between; padding: 18px 26px; border-bottom: 1px solid #2e3d5c; color: #aab6cc; font-size: 16px; }
+  .bar b { color: #f0c56e; font-weight: 500; letter-spacing: .08em; }
+  .yaml { margin: 0; padding: 20px 26px; background: #101a2e; border-bottom: 1px solid #2e3d5c; white-space: pre; }
+  .yaml span { color: #8fc0ff; }
+  ol { list-style: none; margin: 0; padding: 18px 26px 8px; }
+  li { display: grid; grid-template-columns: 26px 110px 1fr; gap: 10px; color: #c9d3e4; }
+  li::before { content: '✓'; color: #f0c56e; font-weight: 700; }
+  li span { color: #8fc0ff; }
+  .out { margin: 10px 26px 26px; padding: 12px 16px; border: 1px solid #2e3d5c; border-radius: 8px; background: #101a2e; display: grid; grid-template-columns: 190px 1fr; color: #8a9ab8; }
+  .out b { font-weight: 400; color: #f3d9a4; }
+</style>
+</head>
+<body>
+  <div>
+    <div class="mark"><img src="../public/icon.svg" alt="">skills-action</div>
+    <h1>Ship the skill<br>with the <em>tool.</em></h1>
+    <p class="line">Publish. Check. Inspect. One signed commit.</p>
+  </div>
+  <div class="run">
+    <div class="bar"><span>● ● ●&nbsp;&nbsp;octopot/indexit · release</span><b>PUBLISH</b></div>
+    <pre class="yaml"><span>uses:</span> octomation/skills-action
+<span>with:</span>
+  <span>tool:</span> indexit</pre>
+    <ol>
+      <li><span>registry</span>registered repository</li>
+      <li><span>tag</span>v0.4.2 signed, verified</li>
+      <li><span>release</span>published, not a prerelease</li>
+      <li><span>skill</span>valid, version 0.4.2</li>
+      <li><span>commit</span>chore(indexit): publish</li>
+      <li><span>catalog</span>indexit--v0.4.2</li>
+    </ol>
+    <div class="out"><span>changed</span><b>true</b><span>catalog-tag</span><b>indexit--v0.4.2</b></div>
+  </div>
+  <div class="version">v0.2.1</div>
+</body>
+</html>

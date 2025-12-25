@@ -1,0 +1,109 @@
+/*
+ * The landing page of skills-action: the run of the hero (components/run.jsx),
+ * the way of a skill (components/journey.jsx) and the feature rows. The run is
+ * a terminal in either theme, as in the sibling sites; here it is navy, with
+ * the blue of the mark for the prompt and gold for what passed.
+ */
+
+/* The shared .workflow-* terminal of globals.css, in navy. */
+.workflow-terminal { background: #15213a; border-color: #2e3d5c; color: #e6ebf4; }
+.workflow-title, .workflow-command-row, .workflow-footer { border-color: #2e3d5c; }
+.workflow-title { color: #aab6cc; }
+.workflow-title > span:first-child > span { color: #7f8faf; }
+.workflow-title > span:last-child { color: #f0c56e; }
+.workflow-command-row, .workflow-disclaimer { background: #101a2e; }
+.workflow-command { color: #e6ebf4; }
+.workflow-command > span { color: #f3d9a4; }
+.workflow-copy { border-color: #4a5b7e; color: #e6ebf4; }
+.workflow-copy:hover { background: #223252; }
+.workflow-footer { color: #aab6cc; }
+.workflow-terminal button:focus-visible, .workflow-switch button:focus-visible { outline-color: #f0c56e; }
+
+.sa-home code { font-size: .9em; }
+
+/* --- the run ------------------------------------------------------------- */
+.run-demo { min-width: 0; }
+.run-yaml > span { color: #8fc0ff; }
+.run-log { list-style: none; margin: 0; padding: 4px 0 10px; }
+.run-log li { display: grid; grid-template-columns: 16px 74px 1fr; gap: 8px; align-items: baseline; padding: 5px 0; color: #c9d3e4; animation: run-in .38s ease-out both; animation-delay: calc(var(--i) * .26s + .1s); }
+.run-mark { color: #f0c56e; font-weight: 700; }
+.run-key { color: #8fc0ff; }
+.run-text { min-width: 0; overflow-wrap: anywhere; }
+.run-outputs { margin: 0 0 14px; padding: 10px 12px; border: 1px solid #2e3d5c; border-radius: 6px; background: #101a2e; animation: run-in .38s ease-out both; animation-delay: calc(var(--i) * .26s + .2s); }
+.run-outputs dl { margin: 0; }
+.run-log-line { margin: 0; color: #f3d9a4; overflow-wrap: anywhere; }
+.run-outputs dl div { display: grid; grid-template-columns: 110px 1fr; gap: 8px; padding: 2px 0; }
+.run-outputs-title { margin: 0 0 4px; color: #8a9ab8; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.run-outputs dt { color: #8a9ab8; }
+.run-outputs dd { margin: 0; color: #f3d9a4; min-width: 0; overflow-wrap: anywhere; }
+.run-footer { margin-left: 0 !important; letter-spacing: .04em; }
+@keyframes run-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* --- sections ------------------------------------------------------------ */
+.sa-section { margin: 64px 0 24px; }
+/* hidden only once components/reveal.jsx observes it: without scripts the page is whole */
+.reveal.is-armed { transition: opacity .6s ease, transform .6s ease; }
+.reveal.is-armed:not(.is-in) { opacity: 0; transform: translateY(14px); }
+@media print { .reveal.is-armed:not(.is-in) { opacity: 1; transform: none; } }
+
+/* --- the way of a skill -------------------------------------------------- */
+.journey { position: relative; margin: 0; }
+.journey-track { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin: 0; padding: 0; list-style: none; }
+.journey-station { display: flex; flex-direction: column; min-width: 0; padding: 22px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); box-shadow: 0 1px 0 rgb(var(--shadow) / .04); transition: border-color .4s, transform .4s; transition-delay: calc(var(--i) * .45s); }
+.journey.in-view .journey-station { border-color: var(--accent); }
+.journey.in-view .journey-station:nth-child(n) { transform: translateY(-2px); }
+.journey-station h3 { margin: 18px 0 12px; font-size: 19px; font-weight: 600; letter-spacing: -.03em; }
+.journey-station .card-number { overflow-wrap: anywhere; }
+.journey-lines { margin: 0 0 18px; padding: 0; list-style: none; font: 12px/1.75 ui-monospace, SFMono-Regular, Consolas, monospace; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.journey-lines .is-dir { color: var(--ink); }
+.journey-lines .is-ok::before { content: '✓ '; color: var(--gold); font-weight: 700; }
+.journey-lines .is-cmd::before { content: '/ '; color: var(--accent); }
+.journey-badge { align-self: flex-start; margin-top: auto; padding: 3px 9px; border: 1px solid var(--line); border-radius: 99px; color: var(--accent); font: 11px/1.6 ui-monospace, monospace; }
+.journey-rail { position: absolute; left: 4%; right: 4%; top: 50%; height: 2px; background: repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 12px); }
+.journey-rail i { position: absolute; top: -4px; left: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--gold); opacity: 0; }
+.journey.in-view .journey-rail i { animation: journey-parcel 3.6s ease-in-out .3s 2 both; }
+@keyframes journey-parcel { 0% { left: 0; opacity: 0; } 8% { opacity: 1; } 92% { opacity: 1; } 100% { left: calc(100% - 10px); opacity: 0; } }
+.journey figcaption { margin: 16px 0 0; color: var(--muted); font-size: 12px; }
+
+/* --- feature rows -------------------------------------------------------- */
+.sa-feature { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; margin: 72px 0; }
+.sa-feature.is-flipped > :first-child { order: 2; }
+.sa-feature h2 { margin: 12px 0 18px; padding: 0; border: none; font-size: clamp(26px, 3vw, 34px); line-height: 1.2; font-weight: 600; letter-spacing: -.04em; }
+.sa-feature p:not(.eyebrow):not(.sa-code-title) { color: var(--muted); font-size: 15px; line-height: 1.75; }
+.sa-more { display: inline-block; margin-top: 8px; color: var(--accent); font-size: 14px; font-weight: 600; }
+.sa-replays ul { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 10px; background: var(--card); overflow: hidden; }
+.sa-replays li { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 15px 20px; border-top: 1px solid var(--line); font-size: 14px; }
+.sa-replays li:first-child { border-top: none; }
+.sa-replays b { flex: none; padding: 3px 10px; border-radius: 99px; font: 500 11px/1.6 ui-monospace, monospace; }
+.sa-replays .is-ok b { color: var(--gold); border: 1px solid currentColor; }
+.sa-replays .is-ok b::before { content: '✓ '; }
+.sa-replays .is-no b { color: var(--ink); background: var(--wash); }
+.sa-replays .is-no b::before { content: '✕ '; color: var(--accent); }
+.sa-code { overflow: hidden; border: 1px solid #2e3d5c; border-radius: 10px; background: #15213a; color: #e6ebf4; box-shadow: 12px 15px 0 var(--wash); }
+.sa-code-title { margin: 0; padding: 12px 18px; border-bottom: 1px solid #2e3d5c; color: #aab6cc; font: 11px/1.4 ui-monospace, monospace; }
+.sa-code pre { margin: 0; padding: 20px 18px; overflow-x: auto; font: 13px/1.8 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.sa-code code { font: inherit; color: #f3d9a4; background: none; border: none; padding: 0; }
+
+@media (max-width: 1100px) {
+  .journey-track { grid-template-columns: repeat(2, 1fr); }
+  .journey-rail { display: none; }
+}
+@media (max-width: 900px) {
+  .sa-feature { gap: 32px; }
+}
+@media (max-width: 700px) {
+  .run-log li { grid-template-columns: 14px 64px 1fr; }
+  .run-outputs dl div { grid-template-columns: 1fr; gap: 0; }
+  .workflow-footer > .run-footer { display: inline; }
+  .journey-track { grid-template-columns: 1fr; gap: 12px; }
+  .sa-feature { grid-template-columns: 1fr; margin: 48px 0; }
+  .sa-feature.is-flipped > :first-child { order: 0; }
+  .sa-code { margin-right: 10px; box-shadow: 8px 9px 0 var(--wash); }
+  .sa-replays li { flex-direction: column; align-items: flex-start; gap: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .run-log li, .run-outputs { animation: none; }
+  .reveal.is-armed, .reveal.is-armed:not(.is-in) { opacity: 1; transform: none; transition: none; }
+  .journey.in-view .journey-rail i { animation: none; }
+  .journey.in-view .journey-station:nth-child(n) { transform: none; }
+}

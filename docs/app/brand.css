@@ -1,0 +1,23 @@
+/*
+ * skills-action brand, loaded after globals.css, which is kept byte-identical
+ * to octopot/indexit. Only the tokens differ: cool library paper, the navy
+ * ink of a catalog card and the blue of the 📚 mark for the accent; gold marks
+ * what is verified.
+ *
+ * Both blocks restate every token they change: :root and .dark have the same
+ * specificity, so a :root rule here would also win over the dark theme.
+ * Contrast (WCAG): accent 6.0:1 on paper, 5.6:1 on wash; muted 5.7:1 on
+ * paper, 5.2:1 on wash; gold 5.6:1 on paper. In the dark, accent 8.9:1,
+ * muted 8.4:1 and gold 9.8:1 on paper.
+ */
+:root {
+  --paper: #f8f9fb; --ink: #172338; --muted: #5a6475; --line: #dde2ea;
+  --accent: #1f5fae; --wash: #edf0f5; --card: #ffffff;
+  --gold: #8a5a00; --shadow: 23 35 56;
+}
+.dark {
+  --paper: #11151c; --ink: #e8ecf2; --muted: #a6b0c0; --line: #2c3442;
+  --accent: #8ab8f0; --wash: #1a202a; --card: #151a22;
+  --gold: #e7b65a; --shadow: 0 0 0;
+}
+::selection { background: #cfe0f7; color: #172338; }

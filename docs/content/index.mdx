@@ -1,0 +1,79 @@
+---
+title: "Ship the skill with the tool."
+description: "skills-action publishes the agent skill of a tool release to the octolab/skills catalog in one signed commit, checks the catalog with the same code and reads what it publishes. Documentation for skills-action v0.2.1."
+---
+
+import Link from 'next/link'
+import { Run } from '../components/run'
+import { Journey } from '../components/journey'
+import { Reveal } from '../components/reveal'
+
+export const catalogEntry = '"maintainer": {\n  "repository": "octomation/maintainer",\n  "skill": "skills/maintainer",\n  "extra-skills": ["review"]\n}'
+
+<div className="home sa-home">
+  <section className="hero">
+    <div className="hero-copy">
+      <Link className="release-pill" href="/changelog/v0.2.1/">Latest release · v0.2.1 <span aria-hidden="true">↗</span></Link>
+      <p className="eyebrow">A GITHUB ACTION FOR AGENT SKILLS</p>
+      <h1>Ship the skill<br />with the <em>tool.</em></h1>
+      <p className="hero-lead">The skill lives in the tool’s repository. On a stable release, one step of its workflow checks it and copies it into the octolab/skills catalog, where Claude Code, Codex and the skills CLI install it.</p>
+      <div className="hero-actions">
+        <Link className="button-primary" href="/publish/">Publish a skill <span aria-hidden="true">→</span></Link>
+        <Link className="button-text" href="/check/">Check the catalog <span aria-hidden="true">↗</span></Link>
+      </div>
+      <p className="hero-note">One action · runner’s Node.js 24, no dependencies · Open source, MIT</p>
+    </div>
+    <Run />
+  </section>
+
+  <div className="flow-strip" aria-label="The way of a skill"><span>01 <b>Release the tool</b></span><span aria-hidden="true">→</span><span>02 <b>Pass every check</b></span><span aria-hidden="true">→</span><span>03 <b>One signed commit</b></span><span aria-hidden="true">→</span><span>04 <b>Install by name</b></span></div>
+
+  <section className="sa-section">
+    <div className="section-heading"><p className="eyebrow">HOW A SKILL TRAVELS</p><h2>From a signed tag<br />to every agent.</h2></div>
+    <Journey />
+  </section>
+
+  <section className="use-cases">
+    <div className="section-heading"><p className="eyebrow">THREE COMMANDS, ONE CODE</p><h2>The tool publishes.<br />The catalog checks itself.</h2></div>
+    <div className="use-case-grid">
+      <Link className="use-case" href="/publish/"><span className="card-number">01 / PUBLISH</span><h3>Release once, publish once</h3><p>Call it after the GitHub release exists. It checks the registry, the signed tag and the skill, then writes the plugin in one commit and tags it.</p><span className="card-link">Publish from a tool <span aria-hidden="true">↗</span></span></Link>
+      <Link className="use-case" href="/check/"><span className="card-number">02 / CHECK</span><h3>Keep the catalog honest</h3><p>Stale manifests, a broken registry, a payload that no longer hashes, a bad tag or a claude plugin validate finding fail the catalog’s CI.</p><span className="card-link">Check the catalog <span aria-hidden="true">↗</span></span></Link>
+      <Link className="use-case" href="/inspect/"><span className="card-number">03 / INSPECT</span><h3>Read the record, not the file</h3><p>Version, source and every skill with its path and digest, at any tag of the catalog, offline. No workflow parses provenance.json itself.</p><span className="card-link">Inspect a plugin <span aria-hidden="true">↗</span></span></Link>
+    </div>
+  </section>
+
+  <section className="sa-feature">
+    <Reveal>
+      <p className="eyebrow">FROZEN BY DESIGN</p>
+      <h2>Run it again. Nothing moves.</h2>
+      <p>A published release is frozen. Running the action again hashes the files anew and compares them with the release’s own record, so a retry is always safe, and a changed skill under an old version is always refused.</p>
+      <p>A wrong skill is fixed in the tool’s repository and ships with its next release.</p>
+      <Link className="sa-more" href="/publish/#running-it-again">Every state of a re-run →</Link>
+    </Reveal>
+    <Reveal className="sa-replays">
+      <ul aria-label="What a repeated run does">
+        <li className="is-ok"><span>Same source, same files</span><b>nothing written</b></li>
+        <li className="is-ok"><span>Published, tag missing</span><b>tags it, if verified</b></li>
+        <li className="is-ok"><span>Another run tagged it</span><b>success</b></li>
+        <li className="is-no"><span>Same tag, other files</span><b>refused: frozen</b></li>
+        <li className="is-no"><span>An older version, never published</span><b>refused: no downgrades</b></li>
+      </ul>
+    </Reveal>
+  </section>
+
+  <section className="sa-feature is-flipped">
+    <Reveal>
+      <p className="eyebrow">EXTRA SKILLS</p>
+      <h2>More than one skill, one plugin.</h2>
+      <p>Put a review skill next to the skill that drives the CLI, register it, and the same release publishes both. Agents see it as <code>maintainer:review</code>; each folder gets its own digest.</p>
+      <Link className="sa-more" href="/extra-skills/">Add an extra skill →</Link>
+    </Reveal>
+    <Reveal className="sa-code">
+      <p className="sa-code-title">catalog.json</p>
+      <pre><code>{catalogEntry}</code></pre>
+    </Reveal>
+  </section>
+
+  <section className="release-band"><div><p className="eyebrow">THE LATEST RELEASE</p><h2>v0.2.1 — The published record of a tool.</h2><p>The new command inspect reads what a catalog checkout publishes for a tool, at any tag and offline. Workflows that call publish or check change nothing.</p></div><Link className="button-primary" href="/changelog/v0.2.1/">Read the release <span aria-hidden="true">→</span></Link></section>
+  <p className="scope-note">skills-action v0.2.1 publishes the main skill and the extra skills of a tool release to <a href="https://github.com/octolab/skills">octolab/skills</a>, checks the catalog and inspects its plugins. To install a skill, see the catalog’s <a href="https://github.com/octolab/skills#-installation">installation guide</a>.</p>
+</div>

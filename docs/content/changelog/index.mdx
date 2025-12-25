@@ -1,0 +1,42 @@
+---
+title: "Changelog"
+description: "What changes for the workflows that call skills-action, release by release."
+---
+
+import Link from 'next/link'
+
+# Pinned releases. Frozen tags.
+
+What changes for the workflows that call the action, release by release. Each
+version is an immutable GitHub release; pin its tag and let Dependabot propose
+the next one.
+
+<Link href="/changelog/v0.2.1/" className="release-entry">
+  <span className="release-label">v0.2.1 · LATEST</span>
+  <h2>The published record of a tool.</h2>
+  <p>The new command inspect reads what a catalog checkout publishes for one tool, at any commit or tag, with no token, network, git or claude.</p>
+  <p>Workflows that call publish or check change nothing.</p>
+  <span className="card-link">Read the release <span aria-hidden="true">→</span></span>
+</Link>
+
+<Link href="/changelog/v0.2.0/" className="release-entry">
+  <span className="release-label">v0.2.0 · STABLE</span>
+  <h2>Extra skills of a tool.</h2>
+  <p>A tool publishes extra skills next to its main one, and agents see them as tool:name. The new output skills-digests lists every published skill.</p>
+  <p>The catalog’s CI moves first: check v0.2.0 refuses an extra skill named like a tool or another tool’s extra skill.</p>
+  <span className="card-link">Read the release <span aria-hidden="true">→</span></span>
+</Link>
+
+<Link href="/changelog/v0.1.1/" className="release-entry">
+  <span className="release-label">v0.1.1 · STABLE</span>
+  <h2>Release on a tag.</h2>
+  <p>Nothing changes for the workflows that call the action. Each version is now an immutable GitHub release, published by the repository’s own workflow from a signed tag.</p>
+  <span className="card-link">Read the release <span aria-hidden="true">→</span></span>
+</Link>
+
+<Link href="/changelog/v0.1.0/" className="release-entry">
+  <span className="release-label">v0.1.0 · STABLE</span>
+  <h2>Ship the skill with the tool.</h2>
+  <p>The first release: a tool’s release workflow publishes its agent skill to the octolab/skills catalog, and the catalog’s CI checks itself with the same code.</p>
+  <span className="card-link">Read the release <span aria-hidden="true">→</span></span>
+</Link>

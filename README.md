@@ -6,6 +6,7 @@ catalog, and reads what it publishes for a tool. The skill lives and changes
 in the tool's repository; on a stable release the tool's workflow calls this
 action, which copies the skill into the catalog together with the manifests
 that make it installable by Claude Code, Codex and the skills CLI.
+Documentation: <https://skills-action.octolab.org/>.
 <!-- 📚 Publish OctoLab agent skills to octolab/skills. -->
 
 ## 🚀 Publish from a tool
