@@ -19,10 +19,14 @@ scripts/validate.mjs     registry, payloads, provenance, tags, discovery
 scripts/inspect.mjs      the published record of one tool, offline
 scripts/claude-validate.mjs  claude plugin validate on the catalog
 tests/                   unit tests on a fake GitHub API
+docs/                    the site at skills-action.octolab.org; see docs/README.md
+.github/settings.json    the Pages site: domain, HTTPS, built by Actions
+.github/scripts/pages.mjs  Pages domain check, smoke test and doctor
 ```
 
 No npm dependencies and no build: the runner runs the sources on its own
-Node.js 24, so there is no `dist/` to keep in step. Node 22 or later locally. The skill contract, the digest and the
+Node.js 24, so there is no `dist/` to keep in step. Only the documentation
+site in `docs/` has npm dependencies, which the action never loads. Node 22 or later locally. The skill contract, the digest and the
 catalog tags are defined in the catalog's `AGENTS.md`; `tests/lib.test.mjs`
 holds the digest's shared test vectors, one skill and a two-skill payload
 with a digest per folder, which tools that embed their skills compute too.
@@ -38,12 +42,22 @@ npm test
 and pull request, and monthly. `cd` publishes the release of a version tag; see
 Releasing.
 
+`cd.docs` builds `docs/` on pull requests that touch it and deploys it to
+GitHub Pages from `main`, at the domain of `.github/settings.json` with HTTPS
+enforced, then smoke-tests what Pages serves; it also runs monthly. `doctor`
+compares Settings → Pages with `.github/settings.json` daily, since a change
+there triggers no build. The site:
+
+```sh
+(cd docs && npm ci && TARGET=static SITE_URL=https://skills-action.octolab.org/ npm run build)
+```
+
 Maintenance runs on schedule: `cleanup.stale` marks and closes inactive
 issues and pull requests daily (`status: pending` exempts one), and
 `cleanup.runs` deletes completed workflow runs monthly. Every workflow
 reports to Slack through `.github/actions/notify` with the organization
-secret `SLACK_WEBHOOK`, except `ci` on pull requests; an empty secret skips
-the message.
+secret `SLACK_WEBHOOK`, `doctor` included, except `ci` and `cd.docs` on pull
+requests; an empty secret skips the message.
 
 ## Versions
 
@@ -79,8 +93,12 @@ used again; our own rule is stricter: releases and tags stay.
 
 1. `ci` is green on `main`.
 2. Write `docs/content/changelog/vX.Y.Z.md`: a heading `# vX.Y.Z — Slogan.`
-   and what changes for the workflows that call the action. It becomes the
-   release body, and Dependabot quotes it in its pull requests. Commit it.
+   on the first line, no frontmatter, and what changes for the workflows that
+   call the action. It becomes the release body, and Dependabot quotes it in
+   its pull requests. Add it to the site and move the version there, as
+   [docs/README.md](docs/README.md#release-notes) lists. Commit it. `main`
+   deploys the site at once, so it names the version before the tag exists:
+   push the tag right after this commit.
 3. Write the tag annotation to a file outside the repository, following the
    previous tag (`git tag -l --format='%(contents)' vX.Y.W`): the heading,
    one or two sentences, lowercase imperative bullets, and
