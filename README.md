@@ -81,7 +81,7 @@ Running it again is safe:
 | Version on `main` without its tag | tag the commit that published it, after checking it and only if GitHub shows it verified |
 | Another run created the tag for the same publication | success |
 | Tag exists with a different source or files | failure: the release is frozen |
-| `main` holds a newer version | failure: no downgrades |
+| No tag for this version, `main` holds a newer one | failure: no downgrades |
 
 "Same files" means the files are hashed again, not the digest recorded in
 `provenance.json` trusted. Submodules, symlinks and dotfiles in a skill fail
